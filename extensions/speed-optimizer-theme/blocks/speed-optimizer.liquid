@@ -1,0 +1,159 @@
+{% comment %}
+  Speed Optimizer Theme App Extension block.
+  Embed this block in your theme's layout/theme.liquid inside <head>.
+
+  Schema settings are synced from the app's admin settings page.
+{% endcomment %}
+
+{% if block.settings.enabled %}
+
+  {%- comment -%}── Critical Resource Hints ────────────────────────────────{%- endcomment -%}
+  {% if block.settings.preconnect_enabled %}
+    <link rel="preconnect" href="https://cdn.shopify.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+  {% endif %}
+
+  {% if block.settings.dns_prefetch_enabled %}
+    <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <link rel="dns-prefetch" href="https://connect.facebook.net">
+    <link rel="dns-prefetch" href="https://analytics.tiktok.com">
+    <link rel="dns-prefetch" href="https://static.klaviyo.com">
+    <link rel="dns-prefetch" href="https://static.hotjar.com">
+  {% endif %}
+
+  {%- comment -%}── LCP Image Preload ──────────────────────────────────────{%- endcomment -%}
+  {% if block.settings.lcp_preload_enabled and block.settings.lcp_image_url != blank %}
+    <link rel="preload" as="image" fetchpriority="high" href="{{ block.settings.lcp_image_url }}">
+  {% endif %}
+
+  {%- comment -%}── RUM Beacon Endpoint ────────────────────────────────────{%- endcomment -%}
+  <script>
+    window.__speedOptEndpoint = {{ routes.root_url | append: "apps/speedopt/rum" | json }};
+  </script>
+
+  {%- comment -%}── Optimization Engine ────────────────────────────────────{%- endcomment -%}
+  <script
+    src="{{ 'speed-optimizer.js' | asset_url }}"
+    defer
+    data-defer-js="{{ block.settings.defer_js_enabled }}"
+    data-delay-third-party="{{ block.settings.delay_third_party_js }}"
+    data-delay-trigger="{{ block.settings.delay_trigger }}"
+    data-lazy-images="{{ block.settings.lazy_load_images }}"
+    data-prefetch-hover="{{ block.settings.prefetch_on_hover }}"
+    data-font-swap="{{ block.settings.font_display_swap }}"
+  ></script>
+
+  {%- comment -%}── RUM Beacon ─────────────────────────────────────────────{%- endcomment -%}
+  {% if block.settings.rum_enabled %}
+    <script src="{{ 'rum-beacon.js' | asset_url }}" defer></script>
+  {% endif %}
+
+{% endif %}
+
+{% schema %}
+{
+  "name": "Speed Optimizer",
+  "target": "head",
+  "settings": [
+    {
+      "type": "checkbox",
+      "id": "enabled",
+      "label": "Enable Speed Optimizer",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "rum_enabled",
+      "label": "Enable Real User Monitoring",
+      "default": true,
+      "info": "Collects Core Web Vitals from real visitors. No cookies set."
+    },
+    {
+      "type": "header",
+      "content": "Resource Hints"
+    },
+    {
+      "type": "checkbox",
+      "id": "preconnect_enabled",
+      "label": "Preconnect to critical origins",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "dns_prefetch_enabled",
+      "label": "DNS prefetch third-party origins",
+      "default": true
+    },
+    {
+      "type": "header",
+      "content": "LCP Optimization"
+    },
+    {
+      "type": "checkbox",
+      "id": "lcp_preload_enabled",
+      "label": "Preload LCP hero image",
+      "default": false
+    },
+    {
+      "type": "url",
+      "id": "lcp_image_url",
+      "label": "LCP image URL",
+      "info": "The above-the-fold hero image. Must be an absolute URL."
+    },
+    {
+      "type": "header",
+      "content": "JavaScript"
+    },
+    {
+      "type": "checkbox",
+      "id": "defer_js_enabled",
+      "label": "Defer non-critical scripts",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "delay_third_party_js",
+      "label": "Delay third-party scripts",
+      "default": true
+    },
+    {
+      "type": "select",
+      "id": "delay_trigger",
+      "label": "Script delay trigger",
+      "default": "interaction",
+      "options": [
+        { "value": "interaction", "label": "First interaction" },
+        { "value": "scroll", "label": "Page scroll" },
+        { "value": "idle", "label": "Browser idle" }
+      ]
+    },
+    {
+      "type": "header",
+      "content": "Images & Fonts"
+    },
+    {
+      "type": "checkbox",
+      "id": "lazy_load_images",
+      "label": "Lazy load images",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "font_display_swap",
+      "label": "Apply font-display: swap",
+      "default": true
+    },
+    {
+      "type": "header",
+      "content": "Prefetching"
+    },
+    {
+      "type": "checkbox",
+      "id": "prefetch_on_hover",
+      "label": "Prefetch pages on link hover",
+      "default": true
+    }
+  ]
+}
+{% endschema %}

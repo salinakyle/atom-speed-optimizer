@@ -1,0 +1,52 @@
+name = "Shopify Speed Optimizer"
+client_id = "{{ SHOPIFY_API_KEY }}"
+application_url = "{{ APP_URL }}"
+embedded = true
+
+[build]
+  include_paths = ["extensions/**"]
+  automatically_update_urls_on_dev = true
+  dev_store_url = ""
+
+[access_scopes]
+  # https://shopify.dev/docs/api/usage/access-scopes
+  scopes = "write_script_tags,read_script_tags,write_themes,read_themes,write_products,read_products,read_orders,write_orders,read_analytics"
+  use_legacy_install_flow = false
+
+[auth]
+  redirect_urls = [
+    "{{ APP_URL }}/auth/callback",
+    "{{ APP_URL }}/auth/shopify/callback",
+    "https://redirect.shopifyapps.com/shopify/oauth/redirect",
+  ]
+
+[webhooks]
+  api_version = "2024-10"
+
+  [[webhooks.subscriptions]]
+    topics = ["app/uninstalled"]
+    uri = "/webhooks"
+
+  [[webhooks.subscriptions]]
+    topics = ["themes/publish"]
+    uri = "/webhooks"
+
+  [[webhooks.subscriptions]]
+    topics = ["products/update"]
+    uri = "/webhooks"
+
+  [[webhooks.subscriptions]]
+    topics = ["collections/update"]
+    uri = "/webhooks"
+
+  [[webhooks.subscriptions]]
+    topics = ["app/subscriptions_update"]
+    uri = "/webhooks"
+
+[app_proxy]
+  url = "{{ APP_URL }}/proxy"
+  subpath = "speedopt"
+  prefix = "apps"
+
+[pos]
+  embedded = false

@@ -1,0 +1,10 @@
+node_modules/
+.env
+build/
+.cache/
+public/build/
+*.local
+.DS_Store
+.shopify/
+.vinxi/
+dist/

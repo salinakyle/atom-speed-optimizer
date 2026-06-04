@@ -1,0 +1,2 @@
+This file keeps the public directory tracked in git.
+Remix serves static assets from this folder.

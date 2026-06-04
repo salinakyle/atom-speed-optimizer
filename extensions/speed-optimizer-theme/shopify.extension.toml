@@ -1,0 +1,7 @@
+[extension]
+type = "theme"
+name = "Speed Optimizer"
+handle = "speed-optimizer-theme"
+
+[extension.development]
+  root_dir = "."

@@ -1,0 +1,254 @@
+// This is the Prisma schema for the Shopify Speed Optimizer app.
+// Each shop is fully isolated; every table includes a shopDomain foreign key.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// Shopify session storage (required by @shopify/shopify-app-session-storage-prisma)
+// ─────────────────────────────────────────────
+model Session {
+  id          String    @id
+  shop        String
+  state       String
+  isOnline    Boolean   @default(false)
+  scope       String?
+  expires     DateTime?
+  accessToken String
+  userId      BigInt?
+  firstName   String?
+  lastName    String?
+  email       String?
+  accountOwner Boolean  @default(false)
+  locale      String?
+  collaborator Boolean? @default(false)
+  emailVerified Boolean? @default(false)
+}
+
+// ─────────────────────────────────────────────
+// Per-shop configuration & state
+// ─────────────────────────────────────────────
+model Shop {
+  id                String    @id @default(cuid())
+  domain            String    @unique
+  accessToken       String
+  installedAt       DateTime  @default(now())
+  uninstalledAt     DateTime?
+  plan              ShopPlan  @default(FREE)
+  onboardingDone    Boolean   @default(false)
+  scriptTagId       String?   // Shopify ScriptTag GID for the RUM beacon
+
+  settings          OptimizationSettings?
+  performanceScores PerformanceScore[]
+  cacheEntries      CacheEntry[]
+  scriptRules       ScriptRule[]
+  alertThresholds   AlertThreshold[]
+  optimizationLogs  OptimizationLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([domain])
+}
+
+enum ShopPlan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+// ─────────────────────────────────────────────
+// Master optimization settings per shop
+// ─────────────────────────────────────────────
+model OptimizationSettings {
+  id        String  @id @default(cuid())
+  shopId    String  @unique
+  shop      Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  // Caching
+  fullPageCacheEnabled    Boolean @default(true)
+  browserCacheTtl         Int     @default(3600)   // seconds
+  cacheWarmingEnabled     Boolean @default(true)
+
+  // JavaScript
+  deferJsEnabled          Boolean @default(true)
+  delayThirdPartyJs       Boolean @default(true)
+  delayTrigger            String  @default("interaction") // interaction | scroll | idle
+
+  // CSS
+  minifyCssEnabled        Boolean @default(true)
+  criticalCssEnabled      Boolean @default(true)
+  removeUnusedCss         Boolean @default(false)
+
+  // Images
+  lazyLoadImages          Boolean @default(true)
+  webpEnabled             Boolean @default(true)
+  lcpPreloadEnabled       Boolean @default(true)
+  lcpPreloadUrl           String? // merchant-set LCP hero image URL
+
+  // Fonts
+  fontDisplaySwap         Boolean @default(true)
+  preloadFonts            Boolean @default(true)
+
+  // Preloading
+  dnsPrefetchEnabled      Boolean @default(true)
+  preconnectEnabled       Boolean @default(true)
+  prefetchOnHover         Boolean @default(true)
+
+  // HTML
+  minifyHtmlEnabled       Boolean @default(false)
+
+  // Resource hints — stored as JSON array of {type, href} objects
+  resourceHints           Json    @default("[]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// Core Web Vitals performance scores over time
+// ─────────────────────────────────────────────
+model PerformanceScore {
+  id        String   @id @default(cuid())
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  url       String
+  source    ScoreSource @default(RUM)
+
+  // Core Web Vitals (ms for time-based, unitless for CLS)
+  lcp       Float?   // Largest Contentful Paint (ms)
+  fid       Float?   // First Input Delay (ms) — legacy
+  inp       Float?   // Interaction to Next Paint (ms)
+  cls       Float?   // Cumulative Layout Shift (unitless * 1000 for storage)
+  fcp       Float?   // First Contentful Paint (ms)
+  ttfb      Float?   // Time to First Byte (ms)
+  score     Float?   // Composite 0-100 Lighthouse score
+
+  // Device type for segmentation
+  device    DeviceType @default(DESKTOP)
+
+  recordedAt DateTime @default(now())
+
+  @@index([shopId, url, recordedAt])
+  @@index([shopId, recordedAt])
+}
+
+enum ScoreSource {
+  RUM        // Real User Monitoring (field data)
+  PSI        // Google PageSpeed Insights (lab data)
+  LIGHTHOUSE // Direct Lighthouse run
+}
+
+enum DeviceType {
+  DESKTOP
+  MOBILE
+  TABLET
+}
+
+// ─────────────────────────────────────────────
+// Cache entries for full-page HTML caching
+// ─────────────────────────────────────────────
+model CacheEntry {
+  id          String    @id @default(cuid())
+  shopId      String
+  shop        Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  url         String
+  htmlContent String    // Stored HTML (compressed in production via CDN)
+  headers     Json      @default("{}")
+  ttl         Int       @default(3600)
+  hits        Int       @default(0)
+  expiresAt   DateTime
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([shopId, url])
+  @@index([shopId, expiresAt])
+}
+
+// ─────────────────────────────────────────────
+// Third-party script delay / defer rules
+// ─────────────────────────────────────────────
+model ScriptRule {
+  id         String          @id @default(cuid())
+  shopId     String
+  shop       Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  name       String          // e.g. "Google Analytics", "Facebook Pixel"
+  pattern    String          // URL pattern to match (substring or regex)
+  action     ScriptAction    @default(DELAY)
+  trigger    ScriptTrigger   @default(INTERACTION)
+  enabled    Boolean         @default(true)
+  isPreset   Boolean         @default(false) // true = built-in preset, false = custom
+
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@index([shopId])
+}
+
+enum ScriptAction {
+  DEFER
+  DELAY
+  BLOCK
+}
+
+enum ScriptTrigger {
+  INTERACTION  // first scroll, click, or keypress
+  SCROLL
+  IDLE         // requestIdleCallback
+  TIMER        // 5s timer fallback
+}
+
+// ─────────────────────────────────────────────
+// Alert thresholds for CWV degradation
+// ─────────────────────────────────────────────
+model AlertThreshold {
+  id         String  @id @default(cuid())
+  shopId     String
+  shop       Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  metric     String  // lcp | inp | cls | fcp | ttfb | score
+  operator   String  // gt | lt
+  value      Float
+  enabled    Boolean @default(true)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([shopId])
+}
+
+// ─────────────────────────────────────────────
+// Audit log of every optimization action
+// ─────────────────────────────────────────────
+model OptimizationLog {
+  id         String    @id @default(cuid())
+  shopId     String
+  shop       Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  action     String    // e.g. "cache_warm", "css_minify", "script_defer"
+  status     LogStatus @default(PENDING)
+  details    Json      @default("{}")
+  error      String?
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([shopId, startedAt])
+}
+
+enum LogStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+}
